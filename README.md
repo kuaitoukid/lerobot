@@ -1,4 +1,5 @@
 <p align="center">
+
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="media/lerobot-logo-thumbnail.png">
     <source media="(prefers-color-scheme: light)" srcset="media/lerobot-logo-thumbnail.png">
