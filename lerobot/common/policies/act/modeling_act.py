@@ -37,6 +37,8 @@ from lerobot.common.policies.act.configuration_act import ACTConfig
 from lerobot.common.policies.normalize import Normalize, Unnormalize
 from lerobot.common.policies.pretrained import PreTrainedPolicy
 
+from depth_anything.depth_anything_v2.dpt import DepthAnythingV2
+
 
 class ACTPolicy(PreTrainedPolicy):
     """
@@ -341,6 +343,10 @@ class ACT(nn.Module):
             # feature map).
             # Note: The forward method of this returns a dict: {"feature_map": output}.
             self.backbone = IntermediateLayerGetter(backbone_model, return_layers={"layer4": "feature_map"})
+            da_model = DepthAnythingV2(encoder="vits")
+            self.backbone_da = IntermediateLayerGetter(
+                da_model, return_layers={"depth_head.scratch.output_conv1": "feature_map"}
+            )
 
         # Transformer (acts as VAE decoder when training with the variational objective).
         self.encoder = ACTEncoder(config)
@@ -488,7 +494,11 @@ class ACT(nn.Module):
 
             # For a list of images, the H and W may vary but H*W is constant.
             for img in batch["observation.images"]:
-                cam_features = self.backbone(img)["feature_map"]
+                cam_main_features = self.backbone(img)["feature_map"]
+                cam_da_features = self.backbone_da(img)["feature_map"]
+                # TODO: how to merge cam_features
+                cam_features = cam_main_features + cam_da_features
+                # TODO: shall we modify cam_pos_embed?
                 cam_pos_embed = self.encoder_cam_feat_pos_embed(cam_features).to(dtype=cam_features.dtype)
                 cam_features = self.encoder_img_feat_input_proj(cam_features)
 
