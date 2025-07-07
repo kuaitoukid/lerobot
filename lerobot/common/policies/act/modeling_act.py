@@ -343,9 +343,19 @@ class ACT(nn.Module):
             # feature map).
             # Note: The forward method of this returns a dict: {"feature_map": output}.
             self.backbone = IntermediateLayerGetter(backbone_model, return_layers={"layer4": "feature_map"})
-            da_model = DepthAnythingV2(encoder="vits")
-            self.backbone_da = IntermediateLayerGetter(
-                da_model, return_layers={"depth_head.scratch.output_conv1": "feature_map"}
+            model_configs = {
+                'vits': {'encoder': 'vits', 'features': 64, 'out_channels': [48, 96, 192, 384]},
+                'vitb': {'encoder': 'vitb', 'features': 128, 'out_channels': [96, 192, 384, 768]},
+                'vitl': {'encoder': 'vitl', 'features': 256, 'out_channels': [256, 512, 1024, 1024]},
+                'vitg': {'encoder': 'vitg', 'features': 384, 'out_channels': [1536, 1536, 1536, 1536]}
+            }
+            da_arch_type = "vits"
+            da_model = DepthAnythingV2(**model_configs[da_arch_type])
+            da_model.load_state_dict(torch.load("pretrained/depth_anything_v2_vits.pth"))
+            self.backbone_da = da_model
+            self.da_feat_proj = nn.Conv2d(
+                model_configs[da_arch_type]["features"],
+                backbone_model.fc.in_features, kernel_size=1
             )
 
         # Transformer (acts as VAE decoder when training with the variational objective).
@@ -495,7 +505,15 @@ class ACT(nn.Module):
             # For a list of images, the H and W may vary but H*W is constant.
             for img in batch["observation.images"]:
                 cam_main_features = self.backbone(img)["feature_map"]
-                cam_da_features = self.backbone_da(img)["feature_map"]
+                with torch.no_grad(): 
+                    da_img = F.interpolate(img, (350, 630), mode="bilinear", align_corners=True)
+                    cam_da_features = self.backbone_da(da_img, return_feature=True)
+                    cam_da_features = F.interpolate(
+                    cam_da_features, cam_main_features.shape[-2:], 
+                        mode="bilinear", align_corners=True
+                    )
+                cam_da_features = self.da_feat_proj(cam_da_features)
+
                 # TODO: how to merge cam_features
                 cam_features = cam_main_features + cam_da_features
                 # TODO: shall we modify cam_pos_embed?
