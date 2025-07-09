@@ -342,21 +342,26 @@ class ACT(nn.Module):
             # Note: The assumption here is that we are using a ResNet model (and hence layer4 is the final
             # feature map).
             # Note: The forward method of this returns a dict: {"feature_map": output}.
-            self.backbone = IntermediateLayerGetter(backbone_model, return_layers={"layer4": "feature_map"})
-            model_configs = {
-                'vits': {'encoder': 'vits', 'features': 64, 'out_channels': [48, 96, 192, 384]},
-                'vitb': {'encoder': 'vitb', 'features': 128, 'out_channels': [96, 192, 384, 768]},
-                'vitl': {'encoder': 'vitl', 'features': 256, 'out_channels': [256, 512, 1024, 1024]},
-                'vitg': {'encoder': 'vitg', 'features': 384, 'out_channels': [1536, 1536, 1536, 1536]}
-            }
-            da_arch_type = "vits"
-            da_model = DepthAnythingV2(**model_configs[da_arch_type])
-            da_model.load_state_dict(torch.load("pretrained/depth_anything_v2_vits.pth"))
-            self.backbone_da = da_model
-            self.da_feat_proj = nn.Conv2d(
-                model_configs[da_arch_type]["features"],
-                backbone_model.fc.in_features, kernel_size=1
+            self.backbone = IntermediateLayerGetter(backbone_model, return_layers={"layer4": "feature_map", "layer3": "highres_map"})
+            self.layer_feat_proj = nn.Conv2d(
+                backbone_model.layer4[-1].conv2.out_channels,
+                backbone_model.layer3[-1].conv2.out_channels,
+                kernel_size=1
             )
+            if self.config.use_da:
+                model_configs = {
+                    'vits': {'encoder': 'vits', 'features': 64, 'out_channels': [48, 96, 192, 384]},
+                    'vitb': {'encoder': 'vitb', 'features': 128, 'out_channels': [96, 192, 384, 768]},
+                    'vitl': {'encoder': 'vitl', 'features': 256, 'out_channels': [256, 512, 1024, 1024]},
+                    'vitg': {'encoder': 'vitg', 'features': 384, 'out_channels': [1536, 1536, 1536, 1536]}
+                }
+                da_model = DepthAnythingV2(**model_configs[self.config.da_arch])
+                da_model.load_state_dict(torch.load(f"pretrained/depth_anything_v2_{self.config.da_arch}.pth"))
+                self.backbone_da = da_model
+                self.da_feat_proj = nn.Conv2d(
+                    model_configs[self.config.da_arch]["features"],
+                    backbone_model.layer3[-1].conv2.out_channels, kernel_size=1
+                )
 
         # Transformer (acts as VAE decoder when training with the variational objective).
         self.encoder = ACTEncoder(config)
@@ -375,7 +380,7 @@ class ACT(nn.Module):
         self.encoder_latent_input_proj = nn.Linear(config.latent_dim, config.dim_model)
         if self.config.image_features:
             self.encoder_img_feat_input_proj = nn.Conv2d(
-                backbone_model.fc.in_features, config.dim_model, kernel_size=1
+                backbone_model.layer3[-1].conv2.out_channels, config.dim_model, kernel_size=1
             )
         # Transformer encoder positional embeddings.
         n_1d_tokens = 1  # for the latent
@@ -504,18 +509,28 @@ class ACT(nn.Module):
 
             # For a list of images, the H and W may vary but H*W is constant.
             for img in batch["observation.images"]:
-                cam_main_features = self.backbone(img)["feature_map"]
-                with torch.no_grad(): 
-                    da_img = F.interpolate(img, (350, 630), mode="bilinear", align_corners=True)
-                    cam_da_features = self.backbone_da(da_img, return_feature=True)
-                    cam_da_features = F.interpolate(
-                    cam_da_features, cam_main_features.shape[-2:], 
-                        mode="bilinear", align_corners=True
-                    )
-                cam_da_features = self.da_feat_proj(cam_da_features)
+                backbone_features = self.backbone(img)
+                cam_main_features = backbone_features["feature_map"]
+                cam_highres_features = backbone_features["highres_map"]
+                cam_main_features = self.layer_feat_proj(cam_main_features)
+                cam_main_features = F.interpolate(cam_main_features, cam_highres_features.shape[-2:], mode="bilinear", align_corners=True)
+                cam_main_features = cam_main_features + cam_highres_features
 
-                # TODO: how to merge cam_features
-                cam_features = cam_main_features + cam_da_features
+                if self.config.use_da:
+                    with torch.no_grad(): 
+                        da_img = F.interpolate(img, self.config.da_input_size, mode="bilinear", align_corners=True)
+                        cam_da_features = self.backbone_da(da_img, return_feature=True)
+                        cam_da_features = F.interpolate(
+                        cam_da_features, cam_main_features.shape[-2:], 
+                            mode="bilinear", align_corners=True
+                        )
+                    cam_da_features = self.da_feat_proj(cam_da_features)
+
+                    # TODO: how to merge cam_features
+                    cam_features = cam_main_features + cam_da_features
+                else:
+                    cam_features = cam_main_features
+
                 # TODO: shall we modify cam_pos_embed?
                 cam_pos_embed = self.encoder_cam_feat_pos_embed(cam_features).to(dtype=cam_features.dtype)
                 cam_features = self.encoder_img_feat_input_proj(cam_features)

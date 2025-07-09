@@ -13,6 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Tuple
 from dataclasses import dataclass, field
 
 from lerobot.common.optim.optimizers import AdamWConfig
@@ -123,6 +124,10 @@ class ACTConfig(PreTrainedConfig):
     use_vae: bool = True
     latent_dim: int = 32
     n_vae_encoder_layers: int = 4
+    # Encoder related code
+    use_da: bool = True
+    da_arch: str = "vits"
+    da_input_size: Tuple = (350, 630)
 
     # Inference.
     # Note: the value used in ACT when temporal ensembling is enabled is 0.01.
