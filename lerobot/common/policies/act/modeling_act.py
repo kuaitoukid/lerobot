@@ -512,6 +512,8 @@ class ACT(nn.Module):
                 backbone_features = self.backbone(img)
                 cam_main_features = backbone_features["feature_map"]
                 cam_highres_features = backbone_features["highres_map"]
+                if not self.config.use_highres:
+                    cam_highres_features *= 0
                 cam_main_features = self.layer_feat_proj(cam_main_features)
                 cam_main_features = F.interpolate(cam_main_features, cam_highres_features.shape[-2:], mode="bilinear", align_corners=True)
                 cam_main_features = cam_main_features + cam_highres_features

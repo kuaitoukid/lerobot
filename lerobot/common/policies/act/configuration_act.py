@@ -125,7 +125,8 @@ class ACTConfig(PreTrainedConfig):
     latent_dim: int = 32
     n_vae_encoder_layers: int = 4
     # Encoder related code
-    use_da: bool = True
+    use_da: bool = False
+    use_highres: bool = False
     da_arch: str = "vits"
     da_input_size: Tuple = (350, 630)
 
