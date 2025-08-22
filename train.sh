@@ -1,1 +1,2 @@
+# collect
 CUDA_VISIBLE_DEVICES=5 python lerobot/scripts/train.py --dataset.repo_id=ktkd/so101_test --policy.type=act --output_dir=outputs/whhe/act_so101_test --job_name=act_so101_test --policy.device=cuda --wandb.enable=false

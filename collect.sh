@@ -1,0 +1,13 @@
+python lerobot/scripts/control_robot.py \
+  --robot.type=so101 \
+  --control.type=record \
+  --control.fps=16 \
+  --control.single_task="Simple grasp." \
+  --control.repo_id=ktkd/office_test_20250815 \
+  --control.tags='["so101","test"]' \
+  --control.warmup_time_s=5 \
+  --control.episode_time_s=10 \
+  --control.reset_time_s=5 \
+  --control.num_episodes=5 \
+  --control.resume=false \
+  --control.push_to_hub=false # true
