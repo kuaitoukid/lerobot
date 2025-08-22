@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import abc
+import sys
 from dataclasses import dataclass, field
 from typing import Sequence
 
@@ -443,7 +444,7 @@ class So101RobotConfig(ManipulatorRobotConfig):
     leader_arms: dict[str, MotorsBusConfig] = field(
         default_factory=lambda: {
             "main": FeetechMotorsBusConfig(
-                port="/dev/ttyACM0",
+                port="COM9" if "win" in sys.platform else "/dev/ttyACM1",
                 motors={
                     # name: (index, model)
                     "shoulder_pan": [1, "sts3215"],
@@ -460,7 +461,7 @@ class So101RobotConfig(ManipulatorRobotConfig):
     follower_arms: dict[str, MotorsBusConfig] = field(
         default_factory=lambda: {
             "main": FeetechMotorsBusConfig(
-                port="/dev/ttyACM1",
+                port="COM8" if "win" in sys.platform else "/dev/ttyACM0",
                 motors={
                     # name: (index, model)
                     "shoulder_pan": [1, "sts3215"],
@@ -476,17 +477,17 @@ class So101RobotConfig(ManipulatorRobotConfig):
 
     cameras: dict[str, CameraConfig] = field(
         default_factory=lambda: {
-            # "rs_inf": OpenCVCameraConfig(
-            #     camera_index=2,
-            #     fps=30,
-            #     width=1280,
-            #     height=720,
-            # ),
-            "rs_rgb": OpenCVCameraConfig(
-                camera_index=4,
+            "rs_435_rgb_global": OpenCVCameraConfig(
+                camera_index=3 if "win" in sys.platform else 6,
                 fps=30,
-                width=1280,
-                height=720,
+                width=640,
+                height=480,
+            ),
+            "camera_25_inhand": OpenCVCameraConfig(
+                camera_index=1 if "win" in sys.platform else 8,
+                fps=16,
+                width=640,
+                height=480,
             ),
         }
     )
