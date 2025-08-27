@@ -196,7 +196,7 @@ def say(text, blocking=False):
         subprocess.Popen(cmd, creationflags=subprocess.CREATE_NO_WINDOW if system == "Windows" else 0)
 
 
-def log_say(text, play_sounds, blocking=False):
+def log_say(text, play_sounds, blocking=True):
     logging.info(text)
 
     if play_sounds:
